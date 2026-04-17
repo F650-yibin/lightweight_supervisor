@@ -1,0 +1,111 @@
+{
+  "control_socket": "/tmp/robot/lifecycle_manager.sock",
+  "processes": [
+    {
+      "name": "base_driver",
+      "argv": ["./dummy_process", "/tmp/robot/base_driver.sock"],
+      "deps": [],
+      "control_sock": "/tmp/robot/base_driver.sock",
+      "role": "Sensor",
+      "critical": true,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "lidar",
+      "argv": ["./dummy_process", "/tmp/robot/lidar.sock"],
+      "deps": [],
+      "control_sock": "/tmp/robot/lidar.sock",
+      "role": "Sensor",
+      "critical": true,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "camera",
+      "argv": ["./dummy_process", "/tmp/robot/camera.sock"],
+      "deps": [],
+      "control_sock": "/tmp/robot/camera.sock",
+      "role": "Sensor",
+      "critical": false,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "map_manager",
+      "argv": ["./dummy_process", "/tmp/robot/map_manager.sock"],
+      "deps": [],
+      "control_sock": "/tmp/robot/map_manager.sock",
+      "role": "Compute",
+      "critical": true,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "localization",
+      "argv": ["./dummy_process", "/tmp/robot/localization.sock"],
+      "deps": ["base_driver", "lidar", "map_manager"],
+      "control_sock": "/tmp/robot/localization.sock",
+      "role": "Compute",
+      "critical": true,
+      "restart_policy": "Never"
+    },
+    {
+      "name": "perception",
+      "argv": ["./dummy_process", "/tmp/robot/perception.sock"],
+      "deps": ["lidar", "camera"],
+      "control_sock": "/tmp/robot/perception.sock",
+      "role": "Compute",
+      "critical": false,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "task_manager",
+      "argv": ["./dummy_process", "/tmp/robot/task_manager.sock"],
+      "deps": ["localization", "map_manager"],
+      "control_sock": "/tmp/robot/task_manager.sock",
+      "role": "Compute",
+      "critical": true,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "planner",
+      "argv": ["./dummy_process", "/tmp/robot/planner.sock"],
+      "deps": ["task_manager", "localization", "perception", "map_manager"],
+      "control_sock": "/tmp/robot/planner.sock",
+      "role": "Compute",
+      "critical": true,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    },
+    {
+      "name": "controller",
+      "argv": ["./dummy_process", "/tmp/robot/controller.sock"],
+      "deps": ["localization", "planner", "base_driver"],
+      "control_sock": "/tmp/robot/controller.sock",
+      "role": "Actuator",
+      "critical": true,
+      "restart_policy": "Never"
+    },
+    {
+      "name": "hmi",
+      "argv": ["./dummy_process", "/tmp/robot/hmi.sock"],
+      "deps": ["task_manager", "map_manager"],
+      "control_sock": "/tmp/robot/hmi.sock",
+      "role": "Compute",
+      "critical": false,
+      "restart_policy": "OnFailure",
+      "max_restart_count": 3,
+      "restart_backoff_ms": 1000
+    }
+  ]
+}
