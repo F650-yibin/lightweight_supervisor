@@ -11,6 +11,6 @@ struct SupervisorConfig {
   std::vector<ProcessSpec> processes;
 };
 
-SupervisorConfig load_config_from_json_file(const std::string& path);
+SupervisorConfig load_config_from_json_file(const std::string &path);
 
 } // namespace supervisor

@@ -14,22 +14,28 @@ struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
-Role parse_role(const std::string& s) {
-  if (s == "Sensor") return Role::Sensor;
-  if (s == "Compute") return Role::Compute;
-  if (s == "Actuator") return Role::Actuator;
+Role parse_role(const std::string &s) {
+  if (s == "Sensor")
+    return Role::Sensor;
+  if (s == "Compute")
+    return Role::Compute;
+  if (s == "Actuator")
+    return Role::Actuator;
   throw Error("invalid role: " + s);
 }
 
-RestartPolicy parse_restart_policy(const std::string& s) {
-  if (s == "Never") return RestartPolicy::Never;
-  if (s == "OnFailure") return RestartPolicy::OnFailure;
-  if (s == "Always") return RestartPolicy::Always;
+RestartPolicy parse_restart_policy(const std::string &s) {
+  if (s == "Never")
+    return RestartPolicy::Never;
+  if (s == "OnFailure")
+    return RestartPolicy::OnFailure;
+  if (s == "Always")
+    return RestartPolicy::Always;
   throw Error("invalid restart_policy: " + s);
 }
 } // namespace
 
-SupervisorConfig load_config_from_json_file(const std::string& path) {
+SupervisorConfig load_config_from_json_file(const std::string &path) {
   std::ifstream ifs(path);
   if (!ifs) {
     throw Error("failed to open config file: " + path);
@@ -47,7 +53,7 @@ SupervisorConfig load_config_from_json_file(const std::string& path) {
     throw Error("config missing 'processes' array");
   }
 
-  for (const auto& jp : j.at("processes")) {
+  for (const auto &jp : j.at("processes")) {
     ProcessSpec p;
 
     p.name = jp.at("name").get<std::string>();

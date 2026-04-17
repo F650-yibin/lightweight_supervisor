@@ -14,8 +14,7 @@
 
 class DummyProcess {
 public:
-  explicit DummyProcess(std::string sock_path)
-      : sock_path_(std::move(sock_path)) {}
+  explicit DummyProcess(std::string sock_path) : sock_path_(std::move(sock_path)) {}
 
   void run() {
     std::filesystem::create_directories("/tmp/robot");
@@ -31,7 +30,7 @@ public:
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, sock_path_.c_str(), sizeof(addr.sun_path) - 1);
 
-    if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+    if (::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0) {
       std::perror("bind");
       ::close(fd);
       return;
@@ -47,20 +46,24 @@ public:
 
     while (running_) {
       int cfd = ::accept(fd, nullptr, nullptr);
-      if (cfd < 0) continue;
+      if (cfd < 0)
+        continue;
 
       std::string line;
       char ch;
       while (true) {
         ssize_t n = ::recv(cfd, &ch, 1, 0);
-        if (n <= 0) break;
-        if (ch == '\n') break;
+        if (n <= 0)
+          break;
+        if (ch == '\n')
+          break;
         line.push_back(ch);
       }
 
       std::string resp = handle_command(line);
       if (!hang_) {
-        if (resp.empty() || resp.back() != '\n') resp.push_back('\n');
+        if (resp.empty() || resp.back() != '\n')
+          resp.push_back('\n');
         ::send(cfd, resp.data(), resp.size(), 0);
       }
 
@@ -72,7 +75,7 @@ public:
   }
 
 private:
-  std::string handle_command(const std::string& line) {
+  std::string handle_command(const std::string &line) {
     apply_delay_if_needed();
 
     if (hang_) {
@@ -93,11 +96,16 @@ private:
       {
         std::lock_guard<std::mutex> lk(mu_);
         mode_ = new_mode;
-        if (new_mode == "SAFE") detail_ = "safe";
-        else if (new_mode == "IDLE") detail_ = "idle";
-        else if (new_mode == "TELEOP") detail_ = "teleop";
-        else if (new_mode == "AUTO") detail_ = "auto";
-        else if (new_mode == "DIAG") detail_ = "diag";
+        if (new_mode == "SAFE")
+          detail_ = "safe";
+        else if (new_mode == "IDLE")
+          detail_ = "idle";
+        else if (new_mode == "TELEOP")
+          detail_ = "teleop";
+        else if (new_mode == "AUTO")
+          detail_ = "auto";
+        else if (new_mode == "DIAG")
+          detail_ = "diag";
         else {
           health_ = "ERR";
           detail_ = "unknown_mode";
@@ -175,7 +183,7 @@ private:
     }
   }
 
-  static bool starts_with(const std::string& s, const std::string& prefix) {
+  static bool starts_with(const std::string &s, const std::string &prefix) {
     return s.rfind(prefix, 0) == 0;
   }
 
@@ -191,7 +199,7 @@ private:
   std::string detail_{"booted"};
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   if (argc != 2) {
     std::cerr << "usage: " << argv[0] << " <sock_path>\n";
     return 1;

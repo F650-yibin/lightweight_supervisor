@@ -8,7 +8,7 @@ namespace supervisor {
 
 class ControlServer {
 public:
-  using Handler = std::function<std::string(const std::string&)>;
+  using Handler = std::function<std::string(const std::string &)>;
 
   ControlServer(std::string socket_path, Handler handler);
   ~ControlServer();

@@ -15,13 +15,13 @@ namespace {
 struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
-}
+} // namespace
 
-std::string IpcClient::request(const std::string& sock_path,
-                               const std::string& line,
+std::string IpcClient::request(const std::string &sock_path, const std::string &line,
                                std::chrono::milliseconds timeout) {
   int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-  if (fd < 0) throw Error("socket() failed");
+  if (fd < 0)
+    throw Error("socket() failed");
 
   sockaddr_un addr{};
   addr.sun_family = AF_UNIX;
@@ -33,7 +33,8 @@ std::string IpcClient::request(const std::string& sock_path,
 
   auto deadline = std::chrono::steady_clock::now() + timeout;
   while (true) {
-    if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0) break;
+    if (::connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0)
+      break;
     if (std::chrono::steady_clock::now() > deadline) {
       ::close(fd);
       throw Error("connect timeout: " + sock_path);
@@ -42,7 +43,8 @@ std::string IpcClient::request(const std::string& sock_path,
   }
 
   std::string msg = line;
-  if (msg.empty() || msg.back() != '\n') msg.push_back('\n');
+  if (msg.empty() || msg.back() != '\n')
+    msg.push_back('\n');
 
   if (::send(fd, msg.data(), msg.size(), 0) < 0) {
     ::close(fd);
@@ -53,14 +55,18 @@ std::string IpcClient::request(const std::string& sock_path,
   char ch;
   while (true) {
     ssize_t n = ::recv(fd, &ch, 1, 0);
-    if (n <= 0) break;
-    if (ch == '\n') break;
+    if (n <= 0)
+      break;
+    if (ch == '\n')
+      break;
     resp.push_back(ch);
-    if (std::chrono::steady_clock::now() > deadline) break;
+    if (std::chrono::steady_clock::now() > deadline)
+      break;
   }
 
   ::close(fd);
-  if (resp.empty()) throw Error("empty response: " + sock_path);
+  if (resp.empty())
+    throw Error("empty response: " + sock_path);
   return resp;
 }
 

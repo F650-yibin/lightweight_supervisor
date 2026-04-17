@@ -12,13 +12,13 @@
 
 namespace {
 
-constexpr const char* RESET  = "\033[0m";
-constexpr const char* RED    = "\033[31m";
-constexpr const char* GREEN  = "\033[32m";
-constexpr const char* YELLOW = "\033[33m";
-constexpr const char* BLUE   = "\033[34m";
-constexpr const char* CYAN   = "\033[36m";
-constexpr const char* BOLD   = "\033[1m";
+constexpr const char *RESET = "\033[0m";
+constexpr const char *RED = "\033[31m";
+constexpr const char *GREEN = "\033[32m";
+constexpr const char *YELLOW = "\033[33m";
+constexpr const char *BLUE = "\033[34m";
+constexpr const char *CYAN = "\033[36m";
+constexpr const char *BOLD = "\033[1m";
 
 struct StatusSummary {
   int running{0};
@@ -30,7 +30,7 @@ struct StatusSummary {
   int unreachable{0};
 };
 
-void print_usage(const char* prog) {
+void print_usage(const char *prog) {
   std::cerr << "usage:\n";
   std::cerr << "  " << prog << " [--socket <path>] <command...>\n\n";
   std::cerr << "examples:\n";
@@ -51,7 +51,7 @@ void print_usage(const char* prog) {
   std::cerr << "  " << prog << " child planner CRASH\n";
 }
 
-int connect_unix_socket(const std::string& sock_path) {
+int connect_unix_socket(const std::string &sock_path) {
   int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
   if (fd < 0) {
     std::perror("socket");
@@ -69,7 +69,7 @@ int connect_unix_socket(const std::string& sock_path) {
 
   std::strncpy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path) - 1);
 
-  if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+  if (::connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0) {
     std::perror(("connect " + sock_path).c_str());
     ::close(fd);
     return -1;
@@ -78,14 +78,15 @@ int connect_unix_socket(const std::string& sock_path) {
   return fd;
 }
 
-bool run_request(const std::string& socket_path,
-                 const std::string& cmd,
-                 std::string* response_out) {
+bool run_request(const std::string &socket_path, const std::string &cmd,
+                 std::string *response_out) {
   int fd = connect_unix_socket(socket_path);
-  if (fd < 0) return false;
+  if (fd < 0)
+    return false;
 
   std::string msg = cmd;
-  if (msg.empty() || msg.back() != '\n') msg.push_back('\n');
+  if (msg.empty() || msg.back() != '\n')
+    msg.push_back('\n');
 
   if (::send(fd, msg.data(), msg.size(), 0) < 0) {
     std::perror("send");
@@ -102,7 +103,8 @@ bool run_request(const std::string& socket_path,
       ::close(fd);
       return false;
     }
-    if (n == 0) break;
+    if (n == 0)
+      break;
     oss.write(buf, n);
   }
 
@@ -111,12 +113,13 @@ bool run_request(const std::string& socket_path,
   return true;
 }
 
-bool contains(const std::string& s, const std::string& needle) {
+bool contains(const std::string &s, const std::string &needle) {
   return s.find(needle) != std::string::npos;
 }
 
-double parse_watch_interval(const std::vector<std::string>& cmd_parts) {
-  if (cmd_parts.size() < 2) return 1.0;
+double parse_watch_interval(const std::vector<std::string> &cmd_parts) {
+  if (cmd_parts.size() < 2)
+    return 1.0;
   try {
     return std::stod(cmd_parts[1]);
   } catch (...) {
@@ -124,8 +127,9 @@ double parse_watch_interval(const std::vector<std::string>& cmd_parts) {
   }
 }
 
-int parse_watch_event_count(const std::vector<std::string>& cmd_parts) {
-  if (cmd_parts.size() < 3) return 10;
+int parse_watch_event_count(const std::vector<std::string> &cmd_parts) {
+  if (cmd_parts.size() < 3)
+    return 10;
   try {
     int n = std::stoi(cmd_parts[2]);
     return n > 0 ? n : 10;
@@ -134,12 +138,11 @@ int parse_watch_event_count(const std::vector<std::string>& cmd_parts) {
   }
 }
 
-void clear_screen() {
-  std::cout << "\033[2J\033[H";
-}
+void clear_screen() { std::cout << "\033[2J\033[H"; }
 
-std::string replace_all(std::string s, const std::string& from, const std::string& to) {
-  if (from.empty()) return s;
+std::string replace_all(std::string s, const std::string &from, const std::string &to) {
+  if (from.empty())
+    return s;
   size_t pos = 0;
   while ((pos = s.find(from, pos)) != std::string::npos) {
     s.replace(pos, from.size(), to);
@@ -148,45 +151,52 @@ std::string replace_all(std::string s, const std::string& from, const std::strin
   return s;
 }
 
-StatusSummary summarize_status(const std::string& status_resp) {
+StatusSummary summarize_status(const std::string &status_resp) {
   StatusSummary sum;
   std::istringstream iss(status_resp);
   std::string line;
 
   while (std::getline(iss, line)) {
-    if (!contains(line, "proc ")) continue;
+    if (!contains(line, "proc "))
+      continue;
 
-    if (contains(line, "state=Running"))  sum.running++;
-    if (contains(line, "state=Degraded")) sum.degraded++;
-    if (contains(line, "state=Exited"))   sum.exited++;
-    if (contains(line, "state=Stopped"))  sum.stopped++;
-    if (contains(line, "state=Failed"))   sum.failed++;
+    if (contains(line, "state=Running"))
+      sum.running++;
+    if (contains(line, "state=Degraded"))
+      sum.degraded++;
+    if (contains(line, "state=Exited"))
+      sum.exited++;
+    if (contains(line, "state=Stopped"))
+      sum.stopped++;
+    if (contains(line, "state=Failed"))
+      sum.failed++;
 
-    if (contains(line, "reachable=true"))  sum.reachable++;
-    if (contains(line, "reachable=false")) sum.unreachable++;
+    if (contains(line, "reachable=true"))
+      sum.reachable++;
+    if (contains(line, "reachable=false"))
+      sum.unreachable++;
   }
 
   return sum;
 }
 
-bool is_abnormal_status_line(const std::string& line) {
-  if (!contains(line, "proc ")) return false;
+bool is_abnormal_status_line(const std::string &line) {
+  if (!contains(line, "proc "))
+    return false;
 
-  return contains(line, "state=Degraded") ||
-         contains(line, "state=Exited") ||
-         contains(line, "state=Stopped") ||
-         contains(line, "state=Failed") ||
-         contains(line, "reachable=false") ||
-         contains(line, "health=ERR") ||
+  return contains(line, "state=Degraded") || contains(line, "state=Exited") ||
+         contains(line, "state=Stopped") || contains(line, "state=Failed") ||
+         contains(line, "reachable=false") || contains(line, "health=ERR") ||
          contains(line, "health=FAIL");
 }
 
-bool is_abnormal_event_line(const std::string& line) {
+bool is_abnormal_event_line(const std::string &line) {
   return contains(line, "level=WARN") || contains(line, "level=ERROR");
 }
 
-std::string filter_status_block(const std::string& input, bool errors_only) {
-  if (!errors_only) return input;
+std::string filter_status_block(const std::string &input, bool errors_only) {
+  if (!errors_only)
+    return input;
 
   std::istringstream iss(input);
   std::ostringstream oss;
@@ -198,7 +208,8 @@ std::string filter_status_block(const std::string& input, bool errors_only) {
       oss << line << "\n";
       continue;
     }
-    if (line == ".") continue;
+    if (line == ".")
+      continue;
     if (is_abnormal_status_line(line)) {
       oss << line << "\n";
       found = true;
@@ -212,8 +223,9 @@ std::string filter_status_block(const std::string& input, bool errors_only) {
   return oss.str();
 }
 
-std::string filter_events_block(const std::string& input, bool errors_only) {
-  if (!errors_only) return input;
+std::string filter_events_block(const std::string &input, bool errors_only) {
+  if (!errors_only)
+    return input;
 
   std::istringstream iss(input);
   std::ostringstream oss;
@@ -225,7 +237,8 @@ std::string filter_events_block(const std::string& input, bool errors_only) {
       oss << line << "\n";
       continue;
     }
-    if (line == ".") continue;
+    if (line == ".")
+      continue;
     if (is_abnormal_event_line(line)) {
       oss << line << "\n";
       found = true;
@@ -251,30 +264,39 @@ std::string colorize_line(std::string line) {
   line = replace_all(line, "state=Degraded", std::string("state=") + YELLOW + "Degraded" + RESET);
   line = replace_all(line, "level=WARN", std::string("level=") + YELLOW + "WARN" + RESET);
   line = replace_all(line, "child_mode=SAFE", std::string("child_mode=") + YELLOW + "SAFE" + RESET);
-  line = replace_all(line, "manager_mode=SAFE", std::string("manager_mode=") + YELLOW + "SAFE" + RESET);
+  line =
+    replace_all(line, "manager_mode=SAFE", std::string("manager_mode=") + YELLOW + "SAFE" + RESET);
 
   line = replace_all(line, "health=OK", std::string("health=") + GREEN + "OK" + RESET);
   line = replace_all(line, "state=Running", std::string("state=") + GREEN + "Running" + RESET);
   line = replace_all(line, "reachable=true", std::string(GREEN) + "reachable=true" + RESET);
   line = replace_all(line, "level=INFO", std::string("level=") + GREEN + "INFO" + RESET);
   line = replace_all(line, "child_mode=AUTO", std::string("child_mode=") + CYAN + "AUTO" + RESET);
-  line = replace_all(line, "child_mode=TELEOP", std::string("child_mode=") + CYAN + "TELEOP" + RESET);
+  line =
+    replace_all(line, "child_mode=TELEOP", std::string("child_mode=") + CYAN + "TELEOP" + RESET);
   line = replace_all(line, "child_mode=IDLE", std::string("child_mode=") + CYAN + "IDLE" + RESET);
   line = replace_all(line, "child_mode=DIAG", std::string("child_mode=") + CYAN + "DIAG" + RESET);
 
-  line = replace_all(line, "manager_state=RUNNING", std::string("manager_state=") + GREEN + "RUNNING" + RESET);
-  line = replace_all(line, "manager_state=ERROR", std::string("manager_state=") + RED + "ERROR" + RESET);
-  line = replace_all(line, "manager_state=STOPPED", std::string("manager_state=") + RED + "STOPPED" + RESET);
-  line = replace_all(line, "manager_state=STARTING", std::string("manager_state=") + YELLOW + "STARTING" + RESET);
-  line = replace_all(line, "manager_state=STOPPING", std::string("manager_state=") + YELLOW + "STOPPING" + RESET);
+  line = replace_all(line, "manager_state=RUNNING",
+                     std::string("manager_state=") + GREEN + "RUNNING" + RESET);
+  line =
+    replace_all(line, "manager_state=ERROR", std::string("manager_state=") + RED + "ERROR" + RESET);
+  line = replace_all(line, "manager_state=STOPPED",
+                     std::string("manager_state=") + RED + "STOPPED" + RESET);
+  line = replace_all(line, "manager_state=STARTING",
+                     std::string("manager_state=") + YELLOW + "STARTING" + RESET);
+  line = replace_all(line, "manager_state=STOPPING",
+                     std::string("manager_state=") + YELLOW + "STOPPING" + RESET);
 
-  if (contains(line, "no abnormal processes")) line = std::string(GREEN) + line + RESET;
-  if (contains(line, "no warning/error events")) line = std::string(GREEN) + line + RESET;
+  if (contains(line, "no abnormal processes"))
+    line = std::string(GREEN) + line + RESET;
+  if (contains(line, "no warning/error events"))
+    line = std::string(GREEN) + line + RESET;
 
   return line;
 }
 
-std::string colorize_block(const std::string& input) {
+std::string colorize_block(const std::string &input) {
   std::istringstream iss(input);
   std::ostringstream oss;
   std::string line;
@@ -285,11 +307,11 @@ std::string colorize_block(const std::string& input) {
   return oss.str();
 }
 
-void print_section_header(const std::string& title) {
+void print_section_header(const std::string &title) {
   std::cout << BOLD << BLUE << "==== " << title << " ====" << RESET << "\n";
 }
 
-void print_summary(const StatusSummary& s) {
+void print_summary(const StatusSummary &s) {
   std::cout << BOLD << "summary " << RESET;
   std::cout << "running=" << GREEN << s.running << RESET << " ";
   std::cout << "degraded=" << (s.degraded > 0 ? YELLOW : GREEN) << s.degraded << RESET << " ";
@@ -297,15 +319,16 @@ void print_summary(const StatusSummary& s) {
   std::cout << "stopped=" << (s.stopped > 0 ? RED : GREEN) << s.stopped << RESET << " ";
   std::cout << "failed=" << (s.failed > 0 ? RED : GREEN) << s.failed << RESET << " ";
   std::cout << "reachable=" << GREEN << s.reachable << RESET << " ";
-  std::cout << "unreachable=" << (s.unreachable > 0 ? RED : GREEN) << s.unreachable << RESET << "\n";
+  std::cout << "unreachable=" << (s.unreachable > 0 ? RED : GREEN) << s.unreachable << RESET
+            << "\n";
 }
 
-void run_watch(const std::string& socket_path,
-               double interval_sec,
-               int event_count,
+void run_watch(const std::string &socket_path, double interval_sec, int event_count,
                bool errors_only) {
-  if (interval_sec <= 0.0) interval_sec = 1.0;
-  if (event_count <= 0) event_count = 10;
+  if (interval_sec <= 0.0)
+    interval_sec = 1.0;
+  if (event_count <= 0)
+    event_count = 10;
 
   const auto sleep_dur = std::chrono::duration<double>(interval_sec);
 
@@ -314,17 +337,13 @@ void run_watch(const std::string& socket_path,
     std::string events_resp;
 
     bool status_ok = run_request(socket_path, "status", &status_resp);
-    bool events_ok = run_request(socket_path, "events " + std::to_string(event_count), &events_resp);
+    bool events_ok =
+      run_request(socket_path, "events " + std::to_string(event_count), &events_resp);
 
     clear_screen();
-    std::cout << BOLD << CYAN
-              << "lmctl watch"
-              << RESET
-              << "  socket=" << socket_path
-              << "  interval=" << interval_sec << "s"
-              << "  events=" << event_count
-              << "  filter=" << (errors_only ? "errors-only" : "all")
-              << "\n\n";
+    std::cout << BOLD << CYAN << "lmctl watch" << RESET << "  socket=" << socket_path
+              << "  interval=" << interval_sec << "s" << "  events=" << event_count
+              << "  filter=" << (errors_only ? "errors-only" : "all") << "\n\n";
 
     print_section_header("STATUS");
     if (status_ok) {
@@ -353,7 +372,7 @@ void run_watch(const std::string& socket_path,
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   const std::string default_socket = "/tmp/robot/lifecycle_manager.sock";
   std::string socket_path = default_socket;
   bool errors_only = false;
@@ -395,7 +414,8 @@ int main(int argc, char** argv) {
 
   std::string cmd;
   for (size_t i = 0; i < cmd_parts.size(); ++i) {
-    if (i) cmd += " ";
+    if (i)
+      cmd += " ";
     cmd += cmd_parts[i];
   }
 

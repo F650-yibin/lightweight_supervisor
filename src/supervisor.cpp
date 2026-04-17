@@ -1,10 +1,11 @@
 #include "supervisor.hpp"
+#include "child_status_json.hpp"
 #include "ipc_client.hpp"
 
+#include <csignal>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <csignal>
 
 #include <algorithm>
 #include <chrono>
@@ -33,11 +34,12 @@ std::string now_string() {
   return oss.str();
 }
 
-std::vector<std::string> split_ws(const std::string& s) {
+std::vector<std::string> split_ws(const std::string &s) {
   std::istringstream iss(s);
   std::vector<std::string> out;
   std::string tok;
-  while (iss >> tok) out.push_back(tok);
+  while (iss >> tok)
+    out.push_back(tok);
   return out;
 }
 } // namespace
@@ -68,21 +70,23 @@ Supervisor::~Supervisor() {
 
 void Supervisor::add_process(ProcessSpec spec) {
   std::lock_guard<std::mutex> lk(mu_);
-  if (spec.name.empty()) throw Error("empty process name");
-  if (spec.argv.empty()) throw Error("empty argv for " + spec.name);
-  if (spec.control_sock.empty()) throw Error("empty control_sock for " + spec.name);
-  if (specs_.count(spec.name)) throw Error("duplicate process: " + spec.name);
+  if (spec.name.empty())
+    throw Error("empty process name");
+  if (spec.argv.empty())
+    throw Error("empty argv for " + spec.name);
+  if (spec.control_sock.empty())
+    throw Error("empty control_sock for " + spec.name);
+  if (specs_.count(spec.name))
+    throw Error("duplicate process: " + spec.name);
 
   runtime_[spec.name] = ProcessRuntime{};
   specs_[spec.name] = std::move(spec);
 }
 
-void Supervisor::start_control_interface(const std::string& sock_path) {
+void Supervisor::start_control_interface(const std::string &sock_path) {
   std::filesystem::create_directories("/tmp/robot");
   control_server_ = std::make_unique<ControlServer>(
-      sock_path, [this](const std::string& cmdline) {
-        return this->handle_command_(cmdline);
-      });
+    sock_path, [this](const std::string &cmdline) { return this->handle_command_(cmdline); });
   control_server_->start();
   log_event_("INFO", "-", "control interface started: " + sock_path);
 }
@@ -96,7 +100,8 @@ void Supervisor::stop_control_interface() {
 
 void Supervisor::run_background_threads() {
   std::lock_guard<std::mutex> lk(mu_);
-  if (bg_running_) return;
+  if (bg_running_)
+    return;
   bg_running_ = true;
   monitor_thread_ = std::thread([this] { monitor_children_loop_(); });
   poll_thread_ = std::thread([this] { poll_status_loop_(); });
@@ -108,22 +113,25 @@ void Supervisor::stop_background_threads() {
     bg_running_ = false;
   }
   cv_.notify_all();
-  if (monitor_thread_.joinable()) monitor_thread_.join();
-  if (poll_thread_.joinable()) poll_thread_.join();
+  if (monitor_thread_.joinable())
+    monitor_thread_.join();
+  if (poll_thread_.joinable())
+    poll_thread_.join();
 }
 
 void Supervisor::start_all() {
   std::vector<std::string> order;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (started_) return;
+    if (started_)
+      return;
     manager_state_ = "STARTING";
     order = topo_order_();
   }
 
   std::vector<std::string> started_names;
   try {
-    for (const auto& name : order) {
+    for (const auto &name : order) {
       start_one_(name);
       started_names.push_back(name);
     }
@@ -139,7 +147,10 @@ void Supervisor::start_all() {
     log_event_("INFO", "-", "all processes started");
   } catch (...) {
     for (auto it = started_names.rbegin(); it != started_names.rend(); ++it) {
-      try { stop_one_(*it); } catch (...) {}
+      try {
+        stop_one_(*it);
+      } catch (...) {
+      }
     }
     {
       std::lock_guard<std::mutex> lk(mu_);
@@ -154,7 +165,8 @@ void Supervisor::stop_all() {
   std::vector<std::string> order;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!started_) return;
+    if (!started_)
+      return;
     manager_state_ = "STOPPING";
     order = start_order_;
   }
@@ -162,9 +174,10 @@ void Supervisor::stop_all() {
   enter_safe_mode();
   std::reverse(order.begin(), order.end());
 
-  for (const auto& name : order) {
-    try { stop_one_(name); }
-    catch (const std::exception& e) {
+  for (const auto &name : order) {
+    try {
+      stop_one_(name);
+    } catch (const std::exception &e) {
       log_event_("ERROR", name, std::string("stop failed: ") + e.what());
     }
   }
@@ -178,19 +191,13 @@ void Supervisor::stop_all() {
   log_event_("INFO", "-", "all processes stopped");
 }
 
-void Supervisor::start_proc(const std::string& name) {
-  start_one_(name);
-}
+void Supervisor::start_proc(const std::string &name) { start_one_(name); }
 
-void Supervisor::stop_proc(const std::string& name) {
-  stop_one_(name);
-}
+void Supervisor::stop_proc(const std::string &name) { stop_one_(name); }
 
-void Supervisor::restart_proc(const std::string& name) {
-  restart_one_(name);
-}
+void Supervisor::restart_proc(const std::string &name) { restart_one_(name); }
 
-void Supervisor::set_mode_all(const std::string& mode) {
+void Supervisor::set_mode_all(const std::string &mode) {
   validate_mode_(mode);
   apply_mode_ordered_(mode);
   {
@@ -213,51 +220,40 @@ void Supervisor::enter_safe_mode() {
 std::string Supervisor::status_text() {
   std::lock_guard<std::mutex> lk(mu_);
   std::ostringstream oss;
-  oss << "OK manager_mode=" << manager_mode_
-      << " manager_state=" << manager_state_
+  oss << "OK manager_mode=" << manager_mode_ << " manager_state=" << manager_state_
       << " proc_count=" << specs_.size() << "\n";
 
   auto order = topo_order_();
-  for (const auto& name : order) {
-    const auto& spec = specs_.at(name);
-    const auto& rt = runtime_.at(name);
+  for (const auto &name : order) {
+    const auto &spec = specs_.at(name);
+    const auto &rt = runtime_.at(name);
 
-    oss << "proc"
-        << " name=" << name
-        << " pid=" << rt.pid
-        << " state=" << to_string(rt.state)
+    oss << "proc" << " name=" << name << " pid=" << rt.pid << " state=" << to_string(rt.state)
         << " reachable=" << (rt.child_status.reachable ? "true" : "false")
-        << " child_mode=" << rt.child_status.mode
-        << " health=" << rt.child_status.health
-        << " role=" << to_string(spec.role)
-        << " restarts=" << rt.restart_count
+        << " child_mode=" << rt.child_status.mode << " health=" << rt.child_status.health
+        << " role=" << to_string(spec.role) << " restarts=" << rt.restart_count
         << " critical=" << (spec.critical ? "true" : "false")
-        << "\n";
+        << " detail=" << rt.child_status.detail << "\n";
   }
   oss << ".";
   return oss.str();
 }
 
-std::string Supervisor::proc_status_text(const std::string& name) {
+std::string Supervisor::proc_status_text(const std::string &name) {
   std::lock_guard<std::mutex> lk(mu_);
-  if (!specs_.count(name)) throw Error("unknown process: " + name);
+  if (!specs_.count(name))
+    throw Error("unknown process: " + name);
 
-  const auto& spec = specs_.at(name);
-  const auto& rt = runtime_.at(name);
+  const auto &spec = specs_.at(name);
+  const auto &rt = runtime_.at(name);
 
   std::ostringstream oss;
-  oss << "OK"
-      << " name=" << name
-      << " pid=" << rt.pid
-      << " state=" << to_string(rt.state)
+  oss << "OK" << " name=" << name << " pid=" << rt.pid << " state=" << to_string(rt.state)
       << " reachable=" << (rt.child_status.reachable ? "true" : "false")
-      << " child_mode=" << rt.child_status.mode
-      << " health=" << rt.child_status.health
-      << " detail=" << rt.child_status.detail
-      << " role=" << to_string(spec.role)
+      << " child_mode=" << rt.child_status.mode << " health=" << rt.child_status.health
+      << " detail=" << rt.child_status.detail << " role=" << to_string(spec.role)
       << " critical=" << (spec.critical ? "true" : "false")
-      << " restart_policy=" << to_string(spec.restart_policy)
-      << " restarts=" << rt.restart_count;
+      << " restart_policy=" << to_string(spec.restart_policy) << " restarts=" << rt.restart_count;
   return oss.str();
 }
 
@@ -268,22 +264,22 @@ std::string Supervisor::events_text(size_t max_count) {
 
   size_t begin = events_.size() > max_count ? events_.size() - max_count : 0;
   for (size_t i = begin; i < events_.size(); ++i) {
-    const auto& e = events_[i];
-    oss << "event ts=\"" << e.ts << "\""
-        << " level=" << e.level
-        << " proc=" << e.proc
-        << " msg=\"" << e.message << "\"\n";
+    const auto &e = events_[i];
+    oss << "event ts=\"" << e.ts << "\"" << " level=" << e.level << " proc=" << e.proc << " msg=\""
+        << e.message << "\"\n";
   }
   oss << ".";
   return oss.str();
 }
 
-std::string Supervisor::handle_command_(const std::string& cmdline) {
+std::string Supervisor::handle_command_(const std::string &cmdline) {
   auto args = split_ws(cmdline);
-  if (args.empty()) return "ERR empty_command";
+  if (args.empty())
+    return "ERR empty_command";
 
   try {
-    if (args[0] == "ping") return "OK pong";
+    if (args[0] == "ping")
+      return "OK pong";
     if (args[0] == "start") {
       start_all();
       return "OK started";
@@ -293,63 +289,74 @@ std::string Supervisor::handle_command_(const std::string& cmdline) {
       return "OK stopped";
     }
     if (args[0] == "start_proc") {
-      if (args.size() != 2) return "ERR usage: start_proc <proc>";
+      if (args.size() != 2)
+        return "ERR usage: start_proc <proc>";
       start_proc(args[1]);
       return "OK started " + args[1];
     }
     if (args[0] == "stop_proc") {
-      if (args.size() != 2) return "ERR usage: stop_proc <proc>";
+      if (args.size() != 2)
+        return "ERR usage: stop_proc <proc>";
       stop_proc(args[1]);
       return "OK stopped " + args[1];
     }
-    if (args[0] == "status") return status_text();
+    if (args[0] == "status")
+      return status_text();
     if (args[0] == "events") {
       size_t n = 50;
-      if (args.size() == 2) n = static_cast<size_t>(std::stoul(args[1]));
+      if (args.size() == 2)
+        n = static_cast<size_t>(std::stoul(args[1]));
       return events_text(n);
     }
     if (args[0] == "mode") {
-      if (args.size() != 2) return "ERR usage: mode <SAFE|IDLE|TELEOP|AUTO|DIAG>";
+      if (args.size() != 2)
+        return "ERR usage: mode <SAFE|IDLE|TELEOP|AUTO|DIAG>";
       set_mode_all(args[1]);
       return "OK mode=" + args[1];
     }
     if (args[0] == "restart") {
-      if (args.size() != 2) return "ERR usage: restart <proc>";
+      if (args.size() != 2)
+        return "ERR usage: restart <proc>";
       restart_proc(args[1]);
       return "OK restarted " + args[1];
     }
     if (args[0] == "proc_status") {
-      if (args.size() != 2) return "ERR usage: proc_status <proc>";
+      if (args.size() != 2)
+        return "ERR usage: proc_status <proc>";
       return proc_status_text(args[1]);
     }
     if (args[0] == "child") {
-      if (args.size() < 3) return "ERR usage: child <proc> <raw_command...>";
+      if (args.size() < 3)
+        return "ERR usage: child <proc> <raw_command...>";
       std::string proc = args[1];
       std::string raw;
       for (size_t i = 2; i < args.size(); ++i) {
-        if (i > 2) raw += " ";
+        if (i > 2)
+          raw += " ";
         raw += args[i];
       }
       return forward_child_command_(proc, raw);
     }
 
     return "ERR unknown_command";
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     return std::string("ERR ") + e.what();
   }
 }
 
-void Supervisor::start_one_(const std::string& name) {
+void Supervisor::start_one_(const std::string &name) {
   ProcessSpec spec;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!specs_.count(name)) throw Error("unknown process: " + name);
+    if (!specs_.count(name))
+      throw Error("unknown process: " + name);
     spec = specs_.at(name);
     auto state = runtime_.at(name).state;
-    if (state == ProcState::Running || state == ProcState::Starting) return;
+    if (state == ProcState::Running || state == ProcState::Starting)
+      return;
   }
 
-  for (const auto& dep : spec.deps) {
+  for (const auto &dep : spec.deps) {
     ping_or_throw_(dep);
   }
 
@@ -373,9 +380,10 @@ void Supervisor::start_one_(const std::string& name) {
   if (pid == 0) {
     ::setpgid(0, 0);
 
-    std::vector<char*> argv;
+    std::vector<char *> argv;
     argv.reserve(spec.argv.size() + 1);
-    for (auto& s : spec.argv) argv.push_back(const_cast<char*>(s.c_str()));
+    for (auto &s : spec.argv)
+      argv.push_back(const_cast<char *>(s.c_str()));
     argv.push_back(nullptr);
 
     ::execvp(argv[0], argv.data());
@@ -409,16 +417,17 @@ void Supervisor::start_one_(const std::string& name) {
   log_event_("INFO", name, "started");
 }
 
-void Supervisor::stop_one_(const std::string& name) {
+void Supervisor::stop_one_(const std::string &name) {
   ProcessSpec spec;
   int pgid = -1;
 
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!specs_.count(name)) throw Error("unknown process: " + name);
+    if (!specs_.count(name))
+      throw Error("unknown process: " + name);
 
     spec = specs_.at(name);
-    auto& rt = runtime_.at(name);
+    auto &rt = runtime_.at(name);
 
     if (rt.pid <= 0) {
       rt.state = ProcState::Stopped;
@@ -436,10 +445,11 @@ void Supervisor::stop_one_(const std::string& name) {
   {
     std::unique_lock<std::mutex> lk(mu_);
     bool ok = cv_.wait_for(lk, spec.stop_timeout, [&] {
-      const auto& rt = runtime_.at(name);
+      const auto &rt = runtime_.at(name);
       return rt.state == ProcState::Stopped || rt.state == ProcState::Exited;
     });
-    if (ok) return;
+    if (ok)
+      return;
   }
 
   if (spec.kill_on_timeout) {
@@ -447,16 +457,17 @@ void Supervisor::stop_one_(const std::string& name) {
 
     std::unique_lock<std::mutex> lk(mu_);
     bool ok = cv_.wait_for(lk, std::chrono::milliseconds(2000), [&] {
-      const auto& rt = runtime_.at(name);
+      const auto &rt = runtime_.at(name);
       return rt.state == ProcState::Stopped || rt.state == ProcState::Exited;
     });
-    if (ok) return;
+    if (ok)
+      return;
   }
 
   throw Error("stop timeout: " + name);
 }
 
-void Supervisor::restart_one_(const std::string& name) {
+void Supervisor::restart_one_(const std::string &name) {
   log_event_("WARN", name, "manual restart requested");
   stop_one_(name);
   start_one_(name);
@@ -466,16 +477,18 @@ void Supervisor::monitor_children_loop_() {
   while (true) {
     {
       std::unique_lock<std::mutex> lk(mu_);
-      if (!bg_running_) break;
+      if (!bg_running_)
+        break;
     }
 
     std::vector<std::string> names;
     {
       std::lock_guard<std::mutex> lk(mu_);
-      for (const auto& [name, _] : specs_) names.push_back(name);
+      for (const auto &[name, _] : specs_)
+        names.push_back(name);
     }
 
-    for (const auto& name : names) {
+    for (const auto &name : names) {
       ProcessSpec spec;
       ProcessRuntime rt;
       {
@@ -484,22 +497,26 @@ void Supervisor::monitor_children_loop_() {
         rt = runtime_.at(name);
       }
 
-      if (rt.pid <= 0) continue;
+      if (rt.pid <= 0)
+        continue;
 
       int status = 0;
       pid_t r = ::waitpid(rt.pid, &status, WNOHANG);
-      if (r == 0 || r != rt.pid) continue;
+      if (r == 0 || r != rt.pid)
+        continue;
 
       int exit_code = 0;
-      if (WIFEXITED(status)) exit_code = WEXITSTATUS(status);
-      else if (WIFSIGNALED(status)) exit_code = 128 + WTERMSIG(status);
+      if (WIFEXITED(status))
+        exit_code = WEXITSTATUS(status);
+      else if (WIFSIGNALED(status))
+        exit_code = 128 + WTERMSIG(status);
 
       bool was_stopping = false;
       bool should_restart = false;
 
       {
         std::lock_guard<std::mutex> lk(mu_);
-        auto& cur = runtime_[name];
+        auto &cur = runtime_[name];
         was_stopping = (cur.state == ProcState::Stopping);
 
         cur.pid = -1;
@@ -512,9 +529,12 @@ void Supervisor::monitor_children_loop_() {
         } else {
           cur.state = ProcState::Exited;
           if (!spec.critical) {
-            if (spec.restart_policy == RestartPolicy::Always) should_restart = true;
-            if (spec.restart_policy == RestartPolicy::OnFailure && exit_code != 0) should_restart = true;
-            if (cur.restart_count >= spec.max_restart_count) should_restart = false;
+            if (spec.restart_policy == RestartPolicy::Always)
+              should_restart = true;
+            if (spec.restart_policy == RestartPolicy::OnFailure && exit_code != 0)
+              should_restart = true;
+            if (cur.restart_count >= spec.max_restart_count)
+              should_restart = false;
           }
         }
       }
@@ -547,7 +567,7 @@ void Supervisor::monitor_children_loop_() {
             runtime_[name].restart_count++;
           }
           start_one_(name);
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
           log_event_("ERROR", name, std::string("restart failed: ") + e.what());
         }
       }
@@ -561,19 +581,21 @@ void Supervisor::poll_status_loop_() {
   while (true) {
     {
       std::lock_guard<std::mutex> lk(mu_);
-      if (!bg_running_) break;
+      if (!bg_running_)
+        break;
     }
 
     std::vector<std::string> names;
     {
       std::lock_guard<std::mutex> lk(mu_);
-      for (const auto& [name, _] : specs_) names.push_back(name);
+      for (const auto &[name, _] : specs_)
+        names.push_back(name);
     }
 
-    for (const auto& name : names) {
+    for (const auto &name : names) {
       try {
         refresh_child_status_(name);
-      } catch (const std::exception& e) {
+      } catch (const std::exception &e) {
         log_event_("WARN", name, std::string("status poll failed: ") + e.what());
       }
     }
@@ -582,12 +604,13 @@ void Supervisor::poll_status_loop_() {
   }
 }
 
-void Supervisor::refresh_child_status_(const std::string& name) {
+void Supervisor::refresh_child_status_(const std::string &name) {
   ProcessSpec spec;
   ProcessRuntime rt;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!specs_.count(name)) throw Error("unknown process: " + name);
+    if (!specs_.count(name))
+      throw Error("unknown process: " + name);
     spec = specs_.at(name);
     rt = runtime_.at(name);
   }
@@ -601,28 +624,49 @@ void Supervisor::refresh_child_status_(const std::string& name) {
 
   try {
     auto pong = IpcClient::request(spec.control_sock, "PING", spec.ping_timeout);
-    if (pong.rfind("OK", 0) != 0) throw Error("PING bad response");
+    if (pong.rfind("OK", 0) != 0)
+      throw Error("PING bad response");
 
     auto status = IpcClient::request(spec.control_sock, "GET_STATUS", spec.status_timeout);
-    auto kv = parse_kv_(status);
 
     ChildStatus cs;
     cs.reachable = true;
-    if (kv.count("mode")) cs.mode = kv["mode"];
-    if (kv.count("health")) cs.health = kv["health"];
-    if (kv.count("detail")) cs.detail = kv["detail"];
+
+    ParsedChildJsonStatus js;
+    if (parse_child_status_json(status, &js)) {
+      if (!js.mode.empty())
+        cs.mode = js.mode;
+      if (!js.health.empty())
+        cs.health = js.health;
+      if (!js.detail.empty())
+        cs.detail = js.detail;
+
+      if (js.process_failed || js.health == "FAIL" || js.runtime_state == "Error") {
+        cs.health = "FAIL";
+      } else if (js.process_degraded || js.health == "DEGRADED") {
+        cs.health = "ERR";
+      } else if (cs.health.empty()) {
+        cs.health = "OK";
+      }
+    } else {
+      auto kv = parse_kv_(status);
+      if (kv.count("mode"))
+        cs.mode = kv["mode"];
+      if (kv.count("health"))
+        cs.health = kv["health"];
+      if (kv.count("detail"))
+        cs.detail = kv["detail"];
+    }
 
     {
       std::lock_guard<std::mutex> lk(mu_);
-      auto& cur = runtime_[name];
+      auto &cur = runtime_[name];
       cur.child_status = cs;
       if (cur.state == ProcState::Starting && cs.reachable) {
         cur.state = ProcState::Running;
-      } else if ((cs.health == "ERR" || cs.health == "FAIL") &&
-                 cur.state == ProcState::Running) {
+      } else if ((cs.health == "ERR" || cs.health == "FAIL") && cur.state == ProcState::Running) {
         cur.state = ProcState::Degraded;
-      } else if (cs.health != "ERR" && cs.health != "FAIL" &&
-                 cur.state == ProcState::Degraded) {
+      } else if (cs.health != "ERR" && cs.health != "FAIL" && cur.state == ProcState::Degraded) {
         cur.state = ProcState::Running;
       }
     }
@@ -630,7 +674,7 @@ void Supervisor::refresh_child_status_(const std::string& name) {
   } catch (...) {
     {
       std::lock_guard<std::mutex> lk(mu_);
-      auto& cur = runtime_[name];
+      auto &cur = runtime_[name];
       cur.child_status.reachable = false;
       if (cur.state == ProcState::Running) {
         cur.state = ProcState::Degraded;
@@ -641,23 +685,26 @@ void Supervisor::refresh_child_status_(const std::string& name) {
   }
 }
 
-void Supervisor::ping_or_throw_(const std::string& name) {
+void Supervisor::ping_or_throw_(const std::string &name) {
   ProcessSpec spec;
   int pid = -1;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!specs_.count(name)) throw Error("unknown process: " + name);
+    if (!specs_.count(name))
+      throw Error("unknown process: " + name);
     spec = specs_.at(name);
     pid = runtime_.at(name).pid;
   }
 
-  if (pid <= 0) throw Error("dependency not running: " + name);
+  if (pid <= 0)
+    throw Error("dependency not running: " + name);
 
   auto resp = IpcClient::request(spec.control_sock, "PING", spec.ping_timeout);
-  if (resp.rfind("OK", 0) != 0) throw Error("PING failed: " + name);
+  if (resp.rfind("OK", 0) != 0)
+    throw Error("PING failed: " + name);
 }
 
-void Supervisor::wait_ready_or_throw_(const std::string& name) {
+void Supervisor::wait_ready_or_throw_(const std::string &name) {
   ProcessSpec spec;
   {
     std::lock_guard<std::mutex> lk(mu_);
@@ -673,8 +720,9 @@ void Supervisor::wait_ready_or_throw_(const std::string& name) {
 
     {
       std::lock_guard<std::mutex> lk(mu_);
-      const auto& rt = runtime_.at(name);
-      if (rt.child_status.reachable) return;
+      const auto &rt = runtime_.at(name);
+      if (rt.child_status.reachable)
+        return;
       if (rt.state == ProcState::Exited || rt.state == ProcState::Failed) {
         throw Error("process exited during startup: " + name);
       }
@@ -691,9 +739,8 @@ void Supervisor::wait_ready_or_throw_(const std::string& name) {
   throw Error("startup timeout: " + name);
 }
 
-void Supervisor::log_event_(const std::string& level,
-                            const std::string& proc,
-                            const std::string& message) {
+void Supervisor::log_event_(const std::string &level, const std::string &proc,
+                            const std::string &message) {
   std::lock_guard<std::mutex> lk(mu_);
   events_.push_back(Event{now_string(), level, proc, message});
   constexpr size_t kMaxEvents = 200;
@@ -706,40 +753,46 @@ std::vector<std::string> Supervisor::topo_order_() const {
   std::unordered_map<std::string, int> indeg;
   std::unordered_map<std::string, std::vector<std::string>> out;
 
-  for (const auto& [name, _] : specs_) indeg[name] = 0;
-  for (const auto& [name, spec] : specs_) {
-    for (const auto& dep : spec.deps) {
-      if (!specs_.count(dep)) throw Error("unknown dependency: " + name + " depends on " + dep);
+  for (const auto &[name, _] : specs_)
+    indeg[name] = 0;
+  for (const auto &[name, spec] : specs_) {
+    for (const auto &dep : spec.deps) {
+      if (!specs_.count(dep))
+        throw Error("unknown dependency: " + name + " depends on " + dep);
       indeg[name]++;
       out[dep].push_back(name);
     }
   }
 
   std::vector<std::string> q;
-  for (const auto& [name, deg] : indeg) {
-    if (deg == 0) q.push_back(name);
+  for (const auto &[name, deg] : indeg) {
+    if (deg == 0)
+      q.push_back(name);
   }
 
   std::vector<std::string> order;
   for (size_t i = 0; i < q.size(); ++i) {
     auto u = q[i];
     order.push_back(u);
-    for (const auto& v : out[u]) {
-      if (--indeg[v] == 0) q.push_back(v);
+    for (const auto &v : out[u]) {
+      if (--indeg[v] == 0)
+        q.push_back(v);
     }
   }
 
-  if (order.size() != specs_.size()) throw Error("dependency cycle detected");
+  if (order.size() != specs_.size())
+    throw Error("dependency cycle detected");
   return order;
 }
 
-void Supervisor::apply_mode_ordered_(const std::string& mode) {
+void Supervisor::apply_mode_ordered_(const std::string &mode) {
   validate_mode_(mode);
 
   std::vector<std::string> order;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!started_ && mode != "SAFE") throw Error("processes not started");
+    if (!started_ && mode != "SAFE")
+      throw Error("processes not started");
     order = topo_order_();
   }
 
@@ -751,7 +804,7 @@ void Supervisor::apply_mode_ordered_(const std::string& mode) {
   }
 
   for (auto role : role_order) {
-    for (const auto& name : order) {
+    for (const auto &name : order) {
       ProcessSpec spec;
       ProcessRuntime rt;
       {
@@ -760,10 +813,11 @@ void Supervisor::apply_mode_ordered_(const std::string& mode) {
         rt = runtime_.at(name);
       }
 
-      if (spec.role != role || rt.pid <= 0) continue;
+      if (spec.role != role || rt.pid <= 0)
+        continue;
 
-      auto resp = IpcClient::request(spec.control_sock, "SET_MODE " + mode,
-                                     std::chrono::milliseconds(500));
+      auto resp =
+        IpcClient::request(spec.control_sock, "SET_MODE " + mode, std::chrono::milliseconds(500));
       if (resp.rfind("OK", 0) != 0) {
         throw Error("SET_MODE failed for " + name + ": " + resp);
       }
@@ -771,20 +825,21 @@ void Supervisor::apply_mode_ordered_(const std::string& mode) {
   }
 }
 
-void Supervisor::validate_mode_(const std::string& mode) const {
-  static const std::unordered_set<std::string> kModes = {
-      "SAFE", "IDLE", "TELEOP", "AUTO", "DIAG"};
-  if (!kModes.count(mode)) throw Error("invalid mode: " + mode);
+void Supervisor::validate_mode_(const std::string &mode) const {
+  static const std::unordered_set<std::string> kModes = {"SAFE", "IDLE", "TELEOP", "AUTO", "DIAG"};
+  if (!kModes.count(mode))
+    throw Error("invalid mode: " + mode);
 }
 
-std::string Supervisor::forward_child_command_(const std::string& name,
-                                               const std::string& raw_command) {
+std::string Supervisor::forward_child_command_(const std::string &name,
+                                               const std::string &raw_command) {
   ProcessSpec spec;
   ProcessRuntime rt;
 
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!specs_.count(name)) throw Error("unknown process: " + name);
+    if (!specs_.count(name))
+      throw Error("unknown process: " + name);
     spec = specs_.at(name);
     rt = runtime_.at(name);
   }
@@ -798,14 +853,16 @@ std::string Supervisor::forward_child_command_(const std::string& name,
   return resp;
 }
 
-std::unordered_map<std::string, std::string> Supervisor::parse_kv_(const std::string& line) {
+std::unordered_map<std::string, std::string> Supervisor::parse_kv_(const std::string &line) {
   std::unordered_map<std::string, std::string> out;
   auto toks = split_ws(line);
 
   for (size_t i = 0; i < toks.size(); ++i) {
-    if (i == 0 && (toks[i] == "OK" || toks[i] == "ERR")) continue;
+    if (i == 0 && (toks[i] == "OK" || toks[i] == "ERR"))
+      continue;
     auto pos = toks[i].find('=');
-    if (pos == std::string::npos) continue;
+    if (pos == std::string::npos)
+      continue;
     out[toks[i].substr(0, pos)] = toks[i].substr(pos + 1);
   }
   return out;

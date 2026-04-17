@@ -5,55 +5,52 @@
 
 namespace supervisor {
 
-enum class Role {
-  Sensor,
-  Compute,
-  Actuator
-};
+enum class Role { Sensor, Compute, Actuator };
 
-enum class RestartPolicy {
-  Never,
-  OnFailure,
-  Always
-};
+enum class RestartPolicy { Never, OnFailure, Always };
 
-enum class ProcState {
-  Stopped,
-  Starting,
-  Running,
-  Degraded,
-  Stopping,
-  Exited,
-  Failed
-};
+enum class ProcState { Stopped, Starting, Running, Degraded, Stopping, Exited, Failed };
 
-inline const char* to_string(Role r) {
+inline const char *to_string(Role r) {
   switch (r) {
-    case Role::Sensor: return "Sensor";
-    case Role::Compute: return "Compute";
-    case Role::Actuator: return "Actuator";
+  case Role::Sensor:
+    return "Sensor";
+  case Role::Compute:
+    return "Compute";
+  case Role::Actuator:
+    return "Actuator";
   }
   return "Unknown";
 }
 
-inline const char* to_string(RestartPolicy p) {
+inline const char *to_string(RestartPolicy p) {
   switch (p) {
-    case RestartPolicy::Never: return "Never";
-    case RestartPolicy::OnFailure: return "OnFailure";
-    case RestartPolicy::Always: return "Always";
+  case RestartPolicy::Never:
+    return "Never";
+  case RestartPolicy::OnFailure:
+    return "OnFailure";
+  case RestartPolicy::Always:
+    return "Always";
   }
   return "Unknown";
 }
 
-inline const char* to_string(ProcState s) {
+inline const char *to_string(ProcState s) {
   switch (s) {
-    case ProcState::Stopped: return "Stopped";
-    case ProcState::Starting: return "Starting";
-    case ProcState::Running: return "Running";
-    case ProcState::Degraded: return "Degraded";
-    case ProcState::Stopping: return "Stopping";
-    case ProcState::Exited: return "Exited";
-    case ProcState::Failed: return "Failed";
+  case ProcState::Stopped:
+    return "Stopped";
+  case ProcState::Starting:
+    return "Starting";
+  case ProcState::Running:
+    return "Running";
+  case ProcState::Degraded:
+    return "Degraded";
+  case ProcState::Stopping:
+    return "Stopping";
+  case ProcState::Exited:
+    return "Exited";
+  case ProcState::Failed:
+    return "Failed";
   }
   return "Unknown";
 }

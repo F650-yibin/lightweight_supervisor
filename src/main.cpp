@@ -12,12 +12,10 @@ using namespace supervisor;
 namespace {
 std::atomic<bool> g_running{true};
 
-void handle_signal(int) {
-  g_running = false;
-}
+void handle_signal(int) { g_running = false; }
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   std::signal(SIGINT, handle_signal);
   std::signal(SIGTERM, handle_signal);
 
@@ -29,20 +27,20 @@ int main(int argc, char** argv) {
   SupervisorConfig cfg;
   try {
     cfg = load_config_from_json_file(config_path);
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << "failed to load config: " << e.what() << "\n";
     return 1;
   }
 
   Supervisor sv;
   try {
-    for (auto& proc : cfg.processes) {
+    for (auto &proc : cfg.processes) {
       sv.add_process(proc);
     }
 
     sv.start_control_interface(cfg.control_socket);
     sv.run_background_threads();
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << "failed to start supervisor: " << e.what() << "\n";
     return 1;
   }
@@ -66,7 +64,7 @@ int main(int argc, char** argv) {
 
   try {
     sv.stop_all();
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << "stop_all failed: " << e.what() << "\n";
   }
 

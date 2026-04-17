@@ -20,6 +20,7 @@ add_library(supervisor_lib
   src/ipc_client.cpp
   src/control_server.cpp
   src/config_loader.cpp
+  src/child_status_json.cpp
 )
 
 target_include_directories(supervisor_lib
