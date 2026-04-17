@@ -14,6 +14,9 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <cerrno>
+#include <poll.h>
+
 namespace {
 
 std::atomic<bool> g_stop{false};
@@ -138,7 +141,7 @@ private:
 
       {
         std::lock_guard<std::mutex> lk(cached_mu_);
-        cached_status_ = tm_.build_status_json("planner", mode_copy).dump(2) + "\n";
+        cached_status_ = tm_.build_status_json("planner", mode_copy).dump() + "\n";
       }
 
       tm_.progress("status_thread");
@@ -169,10 +172,36 @@ private:
       tm_.beat("ipc_thread");
       tm_.bump_loop("ipc_thread");
 
+      pollfd pfd{};
+      pfd.fd = server_fd_;
+      pfd.events = POLLIN;
+
+      const int ready = ::poll(&pfd, 1, 200);
+      if (ready == 0) {
+        tm_.progress("ipc_thread");
+        continue;
+      }
+      if (ready < 0) {
+        if (errno == EINTR && !g_stop.load()) {
+          tm_.progress("ipc_thread");
+          continue;
+        }
+        if (tm_.stop_requested() || g_stop.load()) {
+          break;
+        }
+        tm_.set_thread_error("ipc_thread", "poll failed");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        continue;
+      }
+
       int client_fd = ::accept(server_fd_, nullptr, nullptr);
       if (client_fd < 0) {
         if (tm_.stop_requested() || g_stop.load()) {
           break;
+        }
+        if (errno == EINTR) {
+          tm_.progress("ipc_thread");
+          continue;
         }
         tm_.set_thread_error("ipc_thread", "accept failed");
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -217,7 +246,7 @@ private:
         mode_copy = mode_;
       }
 
-      return tm_.build_status_json("planner", mode_copy).dump(2) + "\n";
+      return tm_.build_status_json("planner", mode_copy).dump() + "\n";
     }
 
     if (req.rfind("SET_MODE ", 0) == 0) {

@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <chrono>
 #include <cstring>
 #include <stdexcept>
@@ -15,6 +16,22 @@ namespace {
 struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
+
+timeval to_timeval(std::chrono::milliseconds timeout) {
+  if (timeout.count() < 0)
+    timeout = std::chrono::milliseconds(0);
+
+  const auto secs = std::chrono::duration_cast<std::chrono::seconds>(timeout);
+  const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout - secs);
+
+  timeval tv{};
+  tv.tv_sec = static_cast<decltype(tv.tv_sec)>(secs.count());
+  tv.tv_usec = static_cast<decltype(tv.tv_usec)>(micros.count());
+
+  if (tv.tv_sec == 0 && tv.tv_usec == 0)
+    tv.tv_usec = 1;
+  return tv;
+}
 } // namespace
 
 std::string IpcClient::request(const std::string &sock_path, const std::string &line,
@@ -42,6 +59,20 @@ std::string IpcClient::request(const std::string &sock_path, const std::string &
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
+  auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+    deadline - std::chrono::steady_clock::now());
+  if (remaining.count() <= 0) {
+    ::close(fd);
+    throw Error("request timeout: " + sock_path);
+  }
+
+  const auto tv = to_timeval(remaining);
+  if (::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) != 0 ||
+      ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) != 0) {
+    ::close(fd);
+    throw Error("setsockopt timeout failed: " + sock_path);
+  }
+
   std::string msg = line;
   if (msg.empty() || msg.back() != '\n')
     msg.push_back('\n');
@@ -55,13 +86,18 @@ std::string IpcClient::request(const std::string &sock_path, const std::string &
   char ch;
   while (true) {
     ssize_t n = ::recv(fd, &ch, 1, 0);
-    if (n <= 0)
+    if (n == 0)
       break;
+    if (n < 0) {
+      ::close(fd);
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        throw Error("recv timeout: " + sock_path);
+      }
+      throw Error("recv failed: " + sock_path);
+    }
     if (ch == '\n')
       break;
     resp.push_back(ch);
-    if (std::chrono::steady_clock::now() > deadline)
-      break;
   }
 
   ::close(fd);

@@ -56,15 +56,20 @@ void ThreadManager::register_thread(const std::string &name, bool critical,
     throw std::runtime_error("duplicate thread registration: " + name);
   }
 
-  PlannerThreadInfo info;
+  auto [it, inserted] = infos_.try_emplace(name);
+  if (!inserted) {
+    throw std::runtime_error("duplicate thread registration: " + name);
+  }
+
+  auto &info = it->second;
   info.name = name;
   info.critical = critical;
   info.heartbeat_timeout_ms = heartbeat_timeout_ms;
   info.progress_timeout_ms = progress_timeout_ms;
-  info.heartbeat_ms.store(now_ms());
-  info.progress_ms.store(now_ms());
 
-  infos_.emplace(name, std::move(info));
+  const std::uint64_t now = now_ms();
+  info.heartbeat_ms.store(now);
+  info.progress_ms.store(now);
 }
 
 void ThreadManager::set_thread_state(const std::string &name, PlannerThreadState state) {

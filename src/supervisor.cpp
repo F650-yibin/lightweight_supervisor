@@ -232,8 +232,7 @@ std::string Supervisor::status_text() {
         << " reachable=" << (rt.child_status.reachable ? "true" : "false")
         << " child_mode=" << rt.child_status.mode << " health=" << rt.child_status.health
         << " role=" << to_string(spec.role) << " restarts=" << rt.restart_count
-        << " critical=" << (spec.critical ? "true" : "false")
-        << " detail=" << rt.child_status.detail << "\n";
+        << " critical=" << (spec.critical ? "true" : "false") << "\n";
   }
   oss << ".";
   return oss.str();
