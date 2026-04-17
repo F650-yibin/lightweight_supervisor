@@ -60,3 +60,41 @@ target_link_libraries(dummy_process
   PRIVATE
     Threads::Threads
 )
+
+add_executable(planner_process
+  examples/planner_process.cpp
+  examples/thread_manager.cpp
+)
+
+target_include_directories(planner_process
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/examples
+)
+
+target_link_libraries(planner_process
+  PRIVATE
+    Threads::Threads
+    nlohmann_json::nlohmann_json
+)
+
+find_program(CLANG_FORMAT_BIN clang-format)
+
+if(CLANG_FORMAT_BIN)
+  file(GLOB_RECURSE ALL_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.hpp
+  )
+
+  add_custom_target(format
+    COMMAND ${CLANG_FORMAT_BIN} -i ${ALL_SOURCE_FILES}
+    COMMENT "Formatting C++ sources with clang-format"
+  )
+
+  add_custom_target(format-check
+    COMMAND ${CLANG_FORMAT_BIN} --dry-run --Werror ${ALL_SOURCE_FILES}
+    COMMENT "Checking C++ formatting with clang-format"
+  )
+endif()

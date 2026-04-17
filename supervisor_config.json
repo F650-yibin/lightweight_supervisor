@@ -78,7 +78,7 @@
     },
     {
       "name": "planner",
-      "argv": ["./dummy_process", "/tmp/robot/planner.sock"],
+      "argv": ["./planner_process", "/tmp/robot/planner.sock"],
       "deps": ["task_manager", "localization", "perception", "map_manager"],
       "control_sock": "/tmp/robot/planner.sock",
       "role": "Compute",
