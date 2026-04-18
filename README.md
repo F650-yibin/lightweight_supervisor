@@ -62,7 +62,7 @@ Interaction layer:
 include/     public headers
 src/         supervisor implementation
 tools/       CLI tools
-examples/    dummy child process for testing
+examples/    dummy and example child processes
 docs/        architecture documents
 ```
 
@@ -91,6 +91,8 @@ Common commands:
 ./lmctl mode AUTO
 ./lmctl watch
 ./lmctl watch 0.5 20 --errors
+./lmctl proc_status planner
+./lmctl child planner GET_STATUS
 ./lmctl child planner SET_HEALTH ERR
 ./lmctl child planner CRASH
 ```
@@ -127,7 +129,8 @@ Responsible for:
 - map loading and switching
 - map metadata and semantic area management
 - station / charger / zone definitions
-- providing map-related information to localization, task_manager, and planner
+- virtual walls / restricted areas
+- providing map-related information to localization, task_manager, planner, and hmi
 
 ### localization
 Responsible for:
